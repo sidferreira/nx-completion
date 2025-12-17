@@ -1,0 +1,11 @@
+# .nx-completion for apps/web/
+# Drop this file in apps/web/ to prioritize web projects
+
+# Prioritize web projects
+NX_PRIORITY_TAGS="scope:web,type:app,audience:retail,audience:internal"
+
+# Deprioritize mobile and test utilities
+NX_DEPRIORITIZE_TAGS="scope:mobile,type:test-lib"
+
+# Boost for web context
+NX_FOLDER_BOOST="200"

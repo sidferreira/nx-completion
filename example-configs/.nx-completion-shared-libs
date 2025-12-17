@@ -1,0 +1,11 @@
+# .nx-completion for libs/shared/
+# Drop this file in libs/shared/ to prioritize shared libraries
+
+# Prioritize shared libraries and components
+NX_PRIORITY_TAGS="scope:shared-front-end,type:lib,audience:all"
+NX_PRIORITY_PROJECT_TYPES="library"  # Override default (libraries first in this context)
+
+# Deprioritize apps and test utilities
+NX_DEPRIORITIZE_TAGS="type:app,type:test-lib,type:e2e"
+
+NX_FOLDER_BOOST="150"

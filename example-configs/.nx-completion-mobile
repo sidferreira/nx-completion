@@ -1,0 +1,12 @@
+# .nx-completion for apps/mobile/
+# Drop this file in apps/mobile/ to prioritize mobile projects
+
+# Prioritize mobile projects
+NX_PRIORITY_TAGS="scope:mobile,type:app,audience:retail"
+
+# Deprioritize web and test utilities
+NX_DEPRIORITIZE_TAGS="scope:web,type:test-lib,type:e2e"
+
+# Additional boost for all projects in this folder (optional)
+# This gets added on top of tag-based priorities
+NX_FOLDER_BOOST="200"

@@ -1,16 +1,50 @@
 # Nx completion plugin for Zsh
 
-> This plugin bring Nx autocompletion to Zsh.
+> This plugin brings Nx autocompletion to Zsh.
 
 ![demo](https://user-images.githubusercontent.com/8522558/111908149-67e8d780-8a58-11eb-9343-691f6d664163.gif)
 
-## Features
+## 🎉 Enhanced Version Available!
+
+This fork includes an **enhanced version** with powerful new features:
+
+- 🎯 **Target-aware filtering** - `nx start <TAB>` shows only projects with "start" target
+- 🏆 **Smart priority ordering** - Applications first, test utilities last
+- 🔄 **Unique project names** - `nx run <TAB>` shows each project once (no duplicates!)
+- 📂 **Folder-aware priorities** - Auto-detects mobile/web/libs context
+- ⚙️ **Config file support** - Drop `.nx-completion` in folders for team settings
+- 🤝 **Team sharing** - Config files in version control
+
+👉 **[See Enhanced Features Documentation](./ENHANCED-FEATURES.md)**
+
+### Quick Start with Enhanced Version
+
+```bash
+# Install as Oh My Zsh plugin
+git clone git@github.com:sidferreira/nx-completion.git ~/.oh-my-zsh/custom/plugins/nx-completion
+
+# Add to ~/.zshrc
+plugins+=(nx-completion)
+source ~/.oh-my-zsh/custom/plugins/nx-completion/nx-completion-enhanced.plugin.zsh
+
+# Reload
+exec zsh
+
+# Try it!
+nx start <TAB>  # Only shows projects with 'start' target!
+```
+
+---
+
+## Standard Version (Original Plugin)
+
+### Features
 
 - ✅ **Dynamic command & option parsing**
   Automatically discovers and updates completions from `nx --help` output
 
 - 🚀 **Intelligent caching = blazing fast completions**
-  Leverages Nx’s project graph cache and memoized command parsing
+  Leverages Nx's project graph cache and memoized command parsing
 
 - 🧠 **Workspace-aware, always up-to-date**
   Auto-syncs completions with your Nx version, project executors, and custom generators
@@ -26,7 +60,7 @@
 
 ## Install
 
-### Prerequisit
+### Prerequisite
 
 Install [`jq`](https://stedolan.github.io/jq/) dependency:
 
@@ -47,13 +81,18 @@ brew install jq
 Clone the repository into the custom plugins directory:
 
 ```shell
-git clone git@github.com:jscutlery/nx-completion.git ~/.oh-my-zsh/custom/plugins/nx-completion
+git clone git@github.com:sidferreira/nx-completion.git ~/.oh-my-zsh/custom/plugins/nx-completion
 ```
 
 Then load it as a plugin in your `.zshrc`:
 
 ```shell
+# Standard version
 plugins+=(nx-completion)
+
+# OR Enhanced version (recommended!)
+plugins+=(nx-completion)
+source ~/.oh-my-zsh/custom/plugins/nx-completion/nx-completion-enhanced.plugin.zsh
 ```
 
 ### Manually
@@ -61,13 +100,18 @@ plugins+=(nx-completion)
 Clone this repository somewhere (`~/.nx-completion` for example):
 
 ```shell
-git clone git@github.com:jscutlery/nx-completion.git ~/.nx-completion
+git clone git@github.com:sidferreira/nx-completion.git ~/.nx-completion
 ```
 
 Then source it in your `.zshrc`:
 
 ```shell
+# Standard version
 source ~/.nx-completion/nx-completion.plugin.zsh
+
+# OR Enhanced version (recommended!)
+source ~/.nx-completion/nx-completion.plugin.zsh
+source ~/.nx-completion/nx-completion-enhanced.plugin.zsh
 ```
 
 ## Cache Management
@@ -129,6 +173,43 @@ cd test && cat PERFORMANCE-TESTING.md
 ```
 
 The test environment includes 5 projects (frontend-app, backend-api, shared-utils, ui-components, data-access) with realistic Nx configurations and supports testing both JSON structure formats.
+
+## Enhanced Version Features
+
+For detailed documentation on the enhanced features, see [ENHANCED-FEATURES.md](./ENHANCED-FEATURES.md).
+
+### Quick Examples
+
+```bash
+# Target filtering - only shows projects with that target
+nx start <TAB>     # Shows 3 projects, not 2053!
+nx build <TAB>     # Only projects with 'build'
+
+# No duplicates
+nx run <TAB>       # Each project once, sorted by priority
+
+# Folder awareness
+cd apps/mobile
+nx start <TAB>     # Mobile projects prioritized
+
+# Config files for teams
+cat > apps/mobile/.nx-completion <<EOF
+NX_PRIORITY_TAGS="scope:mobile,type:app"
+NX_FOLDER_BOOST="200"
+EOF
+```
+
+See [example-configs/](./example-configs/) for ready-to-use templates!
+
+## What's Different in This Fork?
+
+This fork adds an enhanced plugin (`nx-completion-enhanced.plugin.zsh`) with:
+
+1. **Target-aware filtering** - Shows only relevant projects
+2. **Smart prioritization** - By projectType, tags, and context
+3. **Folder awareness** - Auto-detects mobile/web/libs folders
+4. **Config file support** - `.nx-completion` files for team settings
+5. **No breaking changes** - Works alongside the standard plugin
 
 ## License
 
