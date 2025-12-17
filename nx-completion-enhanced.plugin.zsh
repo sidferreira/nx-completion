@@ -14,9 +14,10 @@
 #   - Settings are version-controlled and team-shared!
 
 # Global defaults (can be overridden by config files or env vars)
-typeset -g NX_PRIORITY_PROJECT_TYPES="${NX_PRIORITY_PROJECT_TYPES:-application}"
-typeset -g NX_PRIORITY_TAGS="${NX_PRIORITY_TAGS:-type:app,audience:retail}"
-typeset -g NX_DEPRIORITIZE_TAGS="${NX_DEPRIORITIZE_TAGS:-type:test-lib}"
+typeset -g NX_PRIORITY_PROJECT_TYPES="${NX_PRIORITY_PROJECT_TYPES:-}"
+typeset -g NX_PRIORITY_TAGS="${NX_PRIORITY_TAGS:-}"
+typeset -g NX_DEPRIORITIZE_TAGS="${NX_DEPRIORITIZE_TAGS:-}"
+typeset -g NX_FOLDER_BOOST="${NX_FOLDER_BOOST:-}"
 
 # Config file name to look for
 typeset -g NX_CONFIG_FILE=".nx-completion"
@@ -75,23 +76,45 @@ _nx_load_config() {
     return 0
   fi
 
-  # Source the config file in a subshell to extract variables
-  local config_content=$(<"$config_file")
+  # Safe parsing without eval - read line by line
+  while IFS='=' read -r key value; do
+    # Remove leading/trailing whitespace from key
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
 
-  # Parse config file and set local variables
-  # Support both direct env var format and key=value format
-  if [[ "$config_content" =~ "NX_PRIORITY_PROJECT_TYPES" ]]; then
-    eval "$(grep '^NX_PRIORITY_PROJECT_TYPES=' "$config_file")"
-  fi
-  if [[ "$config_content" =~ "NX_PRIORITY_TAGS" ]]; then
-    eval "$(grep '^NX_PRIORITY_TAGS=' "$config_file")"
-  fi
-  if [[ "$config_content" =~ "NX_DEPRIORITIZE_TAGS" ]]; then
-    eval "$(grep '^NX_DEPRIORITIZE_TAGS=' "$config_file")"
-  fi
-  if [[ "$config_content" =~ "NX_FOLDER_BOOST" ]]; then
-    eval "$(grep '^NX_FOLDER_BOOST=' "$config_file")"
-  fi
+    # Skip empty lines and comments
+    [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+
+    # Remove leading/trailing whitespace from value
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+
+    # Remove quotes from value if present
+    if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+      value="${match[1]}"
+    elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+      value="${match[1]}"
+    fi
+
+    # Whitelist valid configuration keys and set them safely
+    case "$key" in
+      NX_PRIORITY_PROJECT_TYPES)
+        typeset -g NX_PRIORITY_PROJECT_TYPES="$value"
+        ;;
+      NX_PRIORITY_TAGS)
+        typeset -g NX_PRIORITY_TAGS="$value"
+        ;;
+      NX_DEPRIORITIZE_TAGS)
+        typeset -g NX_DEPRIORITIZE_TAGS="$value"
+        ;;
+      NX_FOLDER_BOOST)
+        typeset -g NX_FOLDER_BOOST="$value"
+        ;;
+      *)
+        # Silently ignore unknown keys
+        ;;
+    esac
+  done < "$config_file"
 
   # Mark as loaded
   _NX_CONFIG_CACHE[loaded_mtime]="$current_mtime"
@@ -106,15 +129,14 @@ _nx_get_current_target() {
 }
 
 # Fallback folder rules (if no config file)
+# These are example patterns - users should create .nx-completion files
+# with their workspace-specific tags instead of relying on these defaults
 typeset -gA NX_FOLDER_RULES
 NX_FOLDER_RULES=(
-  "*/apps/mobile/*"           "scope:mobile|200"
-  "*/apps/web/*"              "scope:web|200"
-  "*/libs/mobile/*"           "scope:mobile|150"
-  "*/libs/web/*"              "scope:web|150"
-  "*/libs/shared/*"           "scope:shared-front-end|100"
-  "*/libs/all/*"              "audience:all|100"
-  "*-e2e*"                    "type:e2e|100"
+  # Examples (commented out - uncomment and customize for your workspace):
+  # "*/apps/mobile/*"           "scope:mobile|200"
+  # "*/apps/web/*"              "scope:web|200"
+  # "*/libs/*"                  "type:lib|100"
 )
 
 # Detect folder context (pattern-based or from config)
