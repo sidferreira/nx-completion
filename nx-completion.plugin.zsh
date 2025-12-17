@@ -1415,3 +1415,16 @@ _nx_completion() {
   }
 }
 compdef _nx_completion nx
+
+# Load enhanced completion features if enabled
+if [[ "${NX_COMPLETE_ENHANCED}" == "true" ]]; then
+  # Get the directory where this plugin is located
+  local plugin_dir="${0:A:h}"
+
+  if [[ -f "${plugin_dir}/nx-completion-enhanced.plugin.zsh" ]]; then
+    source "${plugin_dir}/nx-completion-enhanced.plugin.zsh"
+  else
+    echo "⚠️  NX_COMPLETE_ENHANCED is set but nx-completion-enhanced.plugin.zsh not found"
+    echo "   Looking in: ${plugin_dir}"
+  fi
+fi

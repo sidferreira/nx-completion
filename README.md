@@ -23,9 +23,11 @@ This fork includes an **enhanced version** with powerful new features:
 # Install as Oh My Zsh plugin
 git clone git@github.com:sidferreira/nx-completion.git ~/.oh-my-zsh/custom/plugins/nx-completion
 
+# Enable enhanced features in ~/.zshrc (BEFORE plugins line)
+export NX_COMPLETE_ENHANCED=true
+
 # Add to ~/.zshrc
 plugins+=(nx-completion)
-source ~/.oh-my-zsh/custom/plugins/nx-completion/nx-completion-enhanced.plugin.zsh
 
 # Reload
 exec zsh
@@ -91,8 +93,8 @@ Then load it as a plugin in your `.zshrc`:
 plugins+=(nx-completion)
 
 # OR Enhanced version (recommended!)
+export NX_COMPLETE_ENHANCED=true  # Add BEFORE plugins line
 plugins+=(nx-completion)
-source ~/.oh-my-zsh/custom/plugins/nx-completion/nx-completion-enhanced.plugin.zsh
 ```
 
 ### Manually
@@ -110,8 +112,8 @@ Then source it in your `.zshrc`:
 source ~/.nx-completion/nx-completion.plugin.zsh
 
 # OR Enhanced version (recommended!)
+export NX_COMPLETE_ENHANCED=true  # Add BEFORE sourcing
 source ~/.nx-completion/nx-completion.plugin.zsh
-source ~/.nx-completion/nx-completion-enhanced.plugin.zsh
 ```
 
 ## Cache Management
@@ -176,7 +178,17 @@ The test environment includes 5 projects (frontend-app, backend-api, shared-util
 
 ## Enhanced Version Features
 
+The enhanced version is **opt-in** via environment variable. Just set `NX_COMPLETE_ENHANCED=true` in your `.zshrc` before loading the plugin!
+
 For detailed documentation on the enhanced features, see [ENHANCED-FEATURES.md](./ENHANCED-FEATURES.md).
+
+### How It Works
+
+The main plugin (`nx-completion.plugin.zsh`) checks for the `NX_COMPLETE_ENHANCED` environment variable:
+- If `true` → automatically loads `nx-completion-enhanced.plugin.zsh`
+- If not set → uses standard behavior (original plugin)
+
+**Benefit:** One line in `.zshrc` to enable all enhanced features!
 
 ### Quick Examples
 

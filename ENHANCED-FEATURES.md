@@ -21,15 +21,20 @@
 ### 1. Installation
 
 ```bash
-# Copy the file
-cp nx-completion-enhanced.zsh ~/.oh-my-zsh/custom/plugins/nx-completion/
+# Install the plugin
+git clone git@github.com:sidferreira/nx-completion.git ~/.oh-my-zsh/custom/plugins/nx-completion
 
-# Add to ~/.zshrc (AFTER the plugin line)
-source ~/.oh-my-zsh/custom/plugins/nx-completion/nx-completion-enhanced.zsh
+# Enable enhanced features in ~/.zshrc (BEFORE plugins line)
+export NX_COMPLETE_ENHANCED=true
+
+# Add plugin to ~/.zshrc
+plugins+=(nx-completion)
 
 # Reload
 exec zsh
 ```
+
+**That's it!** Just one environment variable enables all enhanced features.
 
 ### 2. Try It
 
