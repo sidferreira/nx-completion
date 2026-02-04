@@ -1,18 +1,19 @@
 # Enhanced Nx-Completion - Complete Guide
 
-**One file. All features.**
+**Auto-detect activation. Zero configuration. Team-friendly.**
 
 ---
 
 ## Features
 
+✅ **Auto-detect activation** - Creates `.nx-completion` file → Enhanced features enabled
 ✅ **Target-aware filtering** - `nx start <TAB>` shows only projects with "start" target
 ✅ **Smart priority ordering** - Applications first, by projectType and tags
 ✅ **Unique project names** - `nx run <TAB>` shows each project once (no duplicates)
-✅ **Folder-aware priorities** - Pattern-based detection (mobile/web/libs)
-✅ **Config file support** - Drop `.nx-completion` in folders for custom settings
-✅ **Team sharing** - Configs in version control, zero setup for team
+✅ **Config-driven priorities** - Folder boost and tag-based ordering
+✅ **Team sharing** - Configs in version control, automatic for everyone
 ✅ **Fast** - Cached with auto-invalidation
+✅ **Zero overhead** - Standard mode unchanged when config file absent
 
 ---
 
@@ -24,9 +25,6 @@
 # Install the plugin
 git clone git@github.com:sidferreira/nx-completion.git ~/.oh-my-zsh/custom/plugins/nx-completion
 
-# Enable enhanced features in ~/.zshrc (BEFORE plugins line)
-export NX_COMPLETE_ENHANCED=true
-
 # Add plugin to ~/.zshrc
 plugins+=(nx-completion)
 
@@ -34,9 +32,25 @@ plugins+=(nx-completion)
 exec zsh
 ```
 
-**That's it!** Just one environment variable enables all enhanced features.
+**That's it!** No environment variables needed.
 
-### 2. Try It
+### 2. Enable Enhanced Features
+
+```bash
+# Create .nx-completion file in your workspace root
+cd /path/to/nx/workspace
+cat > .nx-completion <<EOF
+NX_PRIORITY_PROJECT_TYPES="application"
+NX_PRIORITY_TAGS="scope:mobile,scope:web"
+EOF
+
+# Reload
+exec zsh
+```
+
+**Enhanced features now active!** 🎉
+
+### 3. Try It
 
 ```bash
 # Target filtering
@@ -47,28 +61,42 @@ nx start <TAB>
 nx run <TAB>
 # Shows each project once, applications first
 
-# Folder awareness
-cd apps/mobile
-nx start <TAB>
-# Mobile projects prioritized automatically
+# Priority ordering
+nx build <TAB>
+# Applications first, then libraries
 ```
 
-### 3. Optional: Add Config Files
+### 4. Optional: Team-Specific Configs
 
 ```bash
-# For mobile team
-cat > apps/mobile/.nx-completion <<EOF
-NX_PRIORITY_TAGS="scope:mobile,type:app"
-NX_DEPRIORITIZE_TAGS="scope:web,type:test-lib"
-NX_FOLDER_BOOST="200"
-EOF
+# Commit config file to share with team
+git add .nx-completion
+git commit -m "Add enhanced completion config"
+git push
 
-# Commit to share with team
-git add apps/mobile/.nx-completion
-git commit -m "Add mobile team completion config"
+# Now everyone on the team gets enhanced features automatically!
 ```
 
 **Done!** 🎉
+
+---
+
+## How Auto-Detect Works
+
+The plugin walks up the directory tree looking for `.nx-completion` files:
+
+1. **Checks current directory** for `.nx-completion`
+2. **Walks up parent directories** (up to 10 levels)
+3. **If found** → Enhanced mode enabled + config loaded
+4. **If not found** → Standard mode (backward compatible)
+
+### Benefits
+
+- **No environment variables** - Just create a file
+- **Self-documenting** - Config file presence = enhanced mode
+- **Team-friendly** - Commit to git → Everyone gets it
+- **Workspace-specific** - Different settings per workspace
+- **Zero overhead** - No performance cost when not in use
 
 ---
 

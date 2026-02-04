@@ -4,41 +4,51 @@
 
 ![demo](https://user-images.githubusercontent.com/8522558/111908149-67e8d780-8a58-11eb-9343-691f6d664163.gif)
 
-## 🎉 Enhanced Version Available!
+## 🎉 Enhanced Features with Auto-Detect!
 
-This fork includes an **enhanced version** with powerful new features:
+This plugin includes **enhanced features** that automatically activate when you create a `.nx-completion` config file:
 
 - 🎯 **Target-aware filtering** - `nx start <TAB>` shows only projects with "start" target
 - 🏆 **Smart priority ordering** - Applications first, test utilities last
 - 🔄 **Unique project names** - `nx run <TAB>` shows each project once (no duplicates!)
-- 📂 **Folder-aware priorities** - Auto-detects mobile/web/libs context
-- ⚙️ **Config file support** - Drop `.nx-completion` in folders for team settings
-- 🤝 **Team sharing** - Config files in version control
+- 📂 **Folder-aware priorities** - Boosts projects based on config settings
+- ⚙️ **Config file support** - Drop `.nx-completion` in your workspace root
+- 🤝 **Team sharing** - Config files in version control (commit and share!)
 
 👉 **[See Enhanced Features Documentation](./ENHANCED-FEATURES.md)**
 
-### Quick Start with Enhanced Version
+## Architecture
+
+**Single unified plugin file with auto-detect activation:**
+
+- **Standard Mode**: No `.nx-completion` file found → Original behavior
+- **Enhanced Mode**: `.nx-completion` file exists → Advanced features enabled
+
+The plugin walks up the directory tree looking for `.nx-completion` files and automatically enables enhanced features when found. No environment variables needed!
+
+### Quick Start
 
 ```bash
-# Install as Oh My Zsh plugin
+# 1. Install as Oh My Zsh plugin
 git clone git@github.com:sidferreira/nx-completion.git ~/.oh-my-zsh/custom/plugins/nx-completion
 
-# Enable enhanced features in ~/.zshrc (BEFORE plugins line)
-export NX_COMPLETE_ENHANCED=true
-
-# Add to ~/.zshrc
+# 2. Add to ~/.zshrc
 plugins+=(nx-completion)
 
-# Reload
+# 3. Reload
 exec zsh
 
-# Try it!
+# 4. (Optional) Enable enhanced features by creating config file
+cd /path/to/nx/workspace
+echo 'NX_PRIORITY_PROJECT_TYPES="application"' > .nx-completion
+
+# 5. Try it!
 nx start <TAB>  # Only shows projects with 'start' target!
 ```
 
 ---
 
-## Standard Version (Original Plugin)
+## Standard Features
 
 ### Features
 
@@ -89,13 +99,10 @@ git clone git@github.com:sidferreira/nx-completion.git ~/.oh-my-zsh/custom/plugi
 Then load it as a plugin in your `.zshrc`:
 
 ```shell
-# Standard version
-plugins+=(nx-completion)
-
-# OR Enhanced version (recommended!)
-export NX_COMPLETE_ENHANCED=true  # Add BEFORE plugins line
 plugins+=(nx-completion)
 ```
+
+To enable enhanced features, create a `.nx-completion` file in your workspace root (see [Enhanced Features Documentation](./ENHANCED-FEATURES.md)).
 
 ### Manually
 
@@ -108,13 +115,10 @@ git clone git@github.com:sidferreira/nx-completion.git ~/.nx-completion
 Then source it in your `.zshrc`:
 
 ```shell
-# Standard version
-source ~/.nx-completion/nx-completion.plugin.zsh
-
-# OR Enhanced version (recommended!)
-export NX_COMPLETE_ENHANCED=true  # Add BEFORE sourcing
 source ~/.nx-completion/nx-completion.plugin.zsh
 ```
+
+To enable enhanced features, create a `.nx-completion` file in your workspace root (see [Enhanced Features Documentation](./ENHANCED-FEATURES.md)).
 
 ## Cache Management
 
@@ -176,23 +180,40 @@ cd test && cat PERFORMANCE-TESTING.md
 
 The test environment includes 5 projects (frontend-app, backend-api, shared-utils, ui-components, data-access) with realistic Nx configurations and supports testing both JSON structure formats.
 
-## Enhanced Version Features
+## Enhanced Features
 
-The enhanced version is **opt-in** via environment variable. Just set `NX_COMPLETE_ENHANCED=true` in your `.zshrc` before loading the plugin!
+Enhanced features **automatically activate** when you create a `.nx-completion` file in your workspace!
 
-For detailed documentation on the enhanced features, see [ENHANCED-FEATURES.md](./ENHANCED-FEATURES.md).
+For detailed documentation, see [ENHANCED-FEATURES.md](./ENHANCED-FEATURES.md).
 
-### How It Works
+### How Auto-Detect Works
 
-The main plugin (`nx-completion.plugin.zsh`) checks for the `NX_COMPLETE_ENHANCED` environment variable:
-- If `true` → automatically loads `nx-completion-enhanced.plugin.zsh`
-- If not set → uses standard behavior (original plugin)
+The plugin walks up the directory tree looking for `.nx-completion` files:
 
-**Benefit:** One line in `.zshrc` to enable all enhanced features!
+- **Found** → Enhanced mode enabled + config loaded
+- **Not found** → Standard mode (backward compatible)
+- **Multiple files** → Closest ancestor wins
+
+**Benefits:**
+- No environment variables to configure
+- Self-documenting (config file presence = enhanced mode)
+- Team-friendly (commit `.nx-completion` to enable for everyone)
+- Zero overhead when not in use
 
 ### Quick Examples
 
 ```bash
+# Create config file to enable enhanced features
+cd /path/to/nx/workspace
+cat > .nx-completion <<EOF
+NX_PRIORITY_PROJECT_TYPES="application"
+NX_PRIORITY_TAGS="scope:mobile,scope:web"
+NX_FOLDER_BOOST="200"
+EOF
+
+# Reload shell
+exec zsh
+
 # Target filtering - only shows projects with that target
 nx start <TAB>     # Shows 3 projects, not 2053!
 nx build <TAB>     # Only projects with 'build'
@@ -200,28 +221,21 @@ nx build <TAB>     # Only projects with 'build'
 # No duplicates
 nx run <TAB>       # Each project once, sorted by priority
 
-# Folder awareness
-cd apps/mobile
-nx start <TAB>     # Mobile projects prioritized
-
-# Config files for teams
-cat > apps/mobile/.nx-completion <<EOF
-NX_PRIORITY_TAGS="scope:mobile,type:app"
-NX_FOLDER_BOOST="200"
-EOF
+# Projects prioritized by config
+nx build <TAB>     # Applications first, then libraries
 ```
 
 See [example-configs/](./example-configs/) for ready-to-use templates!
 
 ## What's Different in This Fork?
 
-This fork adds an enhanced plugin (`nx-completion-enhanced.plugin.zsh`) with:
+This fork includes powerful enhanced features with auto-detect activation:
 
 1. **Target-aware filtering** - Shows only relevant projects
 2. **Smart prioritization** - By projectType, tags, and context
-3. **Folder awareness** - Auto-detects mobile/web/libs folders
+3. **Auto-detect activation** - No environment variables needed
 4. **Config file support** - `.nx-completion` files for team settings
-5. **No breaking changes** - Works alongside the standard plugin
+5. **Backward compatible** - Standard mode unchanged
 
 ## License
 

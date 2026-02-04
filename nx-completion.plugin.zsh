@@ -6,11 +6,20 @@
 # - Fallback to Nx cached project graph (.nx/workspace-data/project-graph.json)
 # - Dynamic option parsing for individual commands
 # - Support for workspace projects, targets, and generators
+# - **AUTO-DETECT ENHANCED MODE**: Automatically enables advanced features when
+#   a .nx-completion config file exists in the current directory or parent directories
+#
+# Enhanced features (auto-enabled with .nx-completion file):
+# - Target-aware filtering (only show projects with the specific target)
+# - Priority ordering (by project type, tags, and folder context)
+# - Unique project names for 'nx run' (not project:target combos)
+# - Config-driven customization (team-shareable settings)
 #
 # Performance optimizations:
 # - Uses cached project graph when available
 # - Caches dynamically parsed commands and options
 # - Implements zsh completion caching policy
+# - Zero overhead when enhanced mode is not active
 
 # @todo: Document.
 _nx_command() {
@@ -48,6 +57,164 @@ zstyle ':completion:*:*:nx:*' completer _complete
 zstyle ':completion:*:*:nx:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
 zstyle ':completion:*:*:nx:*' accept-exact-dirs true
 zstyle ':completion:*:*:nx:*' list-separator --
+
+# ============================================================================
+# ENHANCED FEATURES - AUTO-DETECT MODE
+# ============================================================================
+# Enhanced features automatically activate when a .nx-completion config file
+# exists in the current directory or any parent directory.
+# ============================================================================
+
+# Auto-detect mode flag (set to true when config file is found)
+typeset -g _NX_ENHANCED_MODE=false
+
+# Config file name to look for
+typeset -g NX_CONFIG_FILE=".nx-completion"
+
+# Cache for config file lookups
+typeset -gA _NX_CONFIG_CACHE
+typeset -g _NX_CONFIG_CACHE_DIR=""
+
+# Enhanced mode global configuration variables
+typeset -g NX_PRIORITY_PROJECT_TYPES="${NX_PRIORITY_PROJECT_TYPES:-}"
+typeset -g NX_PRIORITY_TAGS="${NX_PRIORITY_TAGS:-}"
+typeset -g NX_DEPRIORITIZE_TAGS="${NX_DEPRIORITIZE_TAGS:-}"
+typeset -g NX_FOLDER_BOOST="${NX_FOLDER_BOOST:-}"
+
+# ============================================================================
+# CONFIG SYSTEM - Auto-detect and load .nx-completion files
+# ============================================================================
+
+# Find .nx-completion config file by walking up directory tree
+_nx_find_config() {
+  local dir="$PWD"
+  local max_depth=10
+  local depth=0
+
+  # Check cache first
+  if [[ "$_NX_CONFIG_CACHE_DIR" == "$dir" ]] && [[ -n "${_NX_CONFIG_CACHE[path]}" ]]; then
+    echo "${_NX_CONFIG_CACHE[path]}"
+    return 0
+  fi
+
+  # Walk up directory tree
+  while [[ "$dir" != "/" ]] && [[ $depth -lt $max_depth ]]; do
+    if [[ -f "$dir/$NX_CONFIG_FILE" ]]; then
+      # Cache the result
+      _NX_CONFIG_CACHE[path]="$dir/$NX_CONFIG_FILE"
+      _NX_CONFIG_CACHE[mtime]=$(stat -f %m "$dir/$NX_CONFIG_FILE" 2>/dev/null || stat -c %Y "$dir/$NX_CONFIG_FILE" 2>/dev/null)
+      _NX_CONFIG_CACHE_DIR="$dir"
+
+      echo "$dir/$NX_CONFIG_FILE"
+      return 0
+    fi
+
+    dir="${dir:h}"  # Move up one directory
+    ((depth++))
+  done
+
+  # Cache negative result
+  _NX_CONFIG_CACHE[path]=""
+  _NX_CONFIG_CACHE_DIR="$PWD"
+  return 1
+}
+
+# Load and apply config file settings (safe parsing without eval)
+_nx_load_config() {
+  local config_file="$1"
+
+  if [[ -z "$config_file" || ! -f "$config_file" ]]; then
+    return 1
+  fi
+
+  # Check if config changed since last load
+  local current_mtime=$(stat -f %m "$config_file" 2>/dev/null || stat -c %Y "$config_file" 2>/dev/null)
+  if [[ "${_NX_CONFIG_CACHE[loaded_mtime]}" == "$current_mtime" ]]; then
+    # Already loaded this version
+    return 0
+  fi
+
+  # Safe parsing without eval - read line by line
+  while IFS='=' read -r key value; do
+    # Remove leading/trailing whitespace from key
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+
+    # Skip empty lines and comments
+    [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+
+    # Remove leading/trailing whitespace from value
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+
+    # Remove quotes from value if present
+    if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+      value="${match[1]}"
+    elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+      value="${match[1]}"
+    fi
+
+    # Whitelist valid configuration keys and set them safely
+    case "$key" in
+      NX_PRIORITY_PROJECT_TYPES)
+        typeset -g NX_PRIORITY_PROJECT_TYPES="$value"
+        ;;
+      NX_PRIORITY_TAGS)
+        typeset -g NX_PRIORITY_TAGS="$value"
+        ;;
+      NX_DEPRIORITIZE_TAGS)
+        typeset -g NX_DEPRIORITIZE_TAGS="$value"
+        ;;
+      NX_FOLDER_BOOST)
+        typeset -g NX_FOLDER_BOOST="$value"
+        ;;
+      *)
+        # Silently ignore unknown keys
+        ;;
+    esac
+  done < "$config_file"
+
+  # Mark as loaded
+  _NX_CONFIG_CACHE[loaded_mtime]="$current_mtime"
+  _NX_CONFIG_CACHE[config_dir]="${config_file:h}"
+
+  return 0
+}
+
+# Detect folder context (from config or pattern-based fallback)
+_nx_detect_folder_context() {
+  local pwd="$PWD"
+
+  # First check for config file
+  local config_file=$(_nx_find_config)
+  if [[ -n "$config_file" ]]; then
+    # Config file exists, load its settings
+    _nx_load_config "$config_file"
+
+    # If config defines a folder boost, return it
+    if [[ -n "$NX_FOLDER_BOOST" ]]; then
+      # Config-based boost applies to all matching tags in priority list
+      echo "${NX_PRIORITY_TAGS}|${NX_FOLDER_BOOST}"
+      return 0
+    fi
+  fi
+
+  # No folder context detected
+  return 1
+}
+
+# Auto-detect enhanced mode at plugin load time
+_nx_detect_enhanced_mode() {
+  local config_file=$(_nx_find_config)
+  if [[ -n "$config_file" ]]; then
+    _NX_ENHANCED_MODE=true
+    _nx_load_config "$config_file"
+  fi
+}
+
+# ============================================================================
+# END CONFIG SYSTEM
+# ============================================================================
 
 # Check if at least one of w_defs are present in working dir.
 _check_workspace_def() {
@@ -263,6 +430,191 @@ _nx_workspace_targets() {
   fi
 }
 
+# ============================================================================
+# ENHANCED FEATURES - Metadata extraction and priority calculation
+# ============================================================================
+
+# Get projects with metadata (projectType and tags) for a specific target
+_get_projects_with_target_metadata() {
+  local target="$1"
+  integer ret=1
+  local cache_key="nx_projects_metadata_${target}"
+  local cache_policy
+
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key[@]}"
+    return 0
+  fi
+
+  local def=$(_workspace_def)
+  if [[ ! -f "$def" ]]; then
+    return 1
+  fi
+
+  local nodes_path=$(_get_nodes_path "$def")
+  local -a projects=()
+
+  if [[ "$nodes_path" == ".graph.nodes" ]]; then
+    projects=($(jq -r --arg target "$target" '
+      .graph.nodes[] |
+      select(.data.targets[$target] != null) |
+      .name + "|" + (.data.projectType // "library") + "|" + (.data.tags // [] | join(","))
+    ' "$def" 2>/dev/null))
+  else
+    projects=($(jq -r --arg target "$target" '
+      .nodes[] |
+      select(.data.targets[$target] != null) |
+      .name + "|" + (.data.projectType // "library") + "|" + (.data.tags // [] | join(","))
+    ' "$def" 2>/dev/null))
+  fi
+
+  if [[ ${#projects} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${projects[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+    echo "${projects[@]}" && ret=0
+  fi
+
+  return ret
+}
+
+# Calculate priority score for a project based on type and tags
+_calculate_project_priority() {
+  local project_type="$1"
+  local tags="$2"
+  local score=0
+
+  # Only apply priority calculation if enhanced mode is active
+  if [[ "$_NX_ENHANCED_MODE" != "true" ]]; then
+    echo "0"
+    return 0
+  fi
+
+  # Base priority: project types
+  local -a priority_types=(${(s:,:)NX_PRIORITY_PROJECT_TYPES})
+  for ptype in $priority_types; do
+    if [[ "$project_type" == "$ptype" ]]; then
+      score=$((score + 1000))
+      break
+    fi
+  done
+
+  # Global priority tags
+  local -a priority_tags=(${(s:,:)NX_PRIORITY_TAGS})
+  for ptag in $priority_tags; do
+    if [[ "$tags" == *"$ptag"* ]]; then
+      score=$((score + 100))
+    fi
+  done
+
+  # Global deprioritize tags
+  local -a deprio_tags=(${(s:,:)NX_DEPRIORITIZE_TAGS})
+  for dtag in $deprio_tags; do
+    if [[ "$tags" == *"$dtag"* ]]; then
+      score=$((score - 50))
+    fi
+  done
+
+  # Folder context boost
+  local context=$(_nx_detect_folder_context)
+  if [[ -n "$context" ]]; then
+    local context_tags="${context%%|*}"
+    local context_scores="${context##*|}"
+
+    local -a ctx_tags=(${(s:,:)context_tags})
+    local -a ctx_scores=(${(s:,:)context_scores})
+
+    for i in {1..${#ctx_tags}}; do
+      local ctx_tag="${ctx_tags[$i]}"
+      local ctx_score="${ctx_scores[$i]}"
+
+      if [[ "$tags" == *"$ctx_tag"* ]]; then
+        score=$((score + ctx_score))
+      fi
+    done
+  fi
+
+  echo "$score"
+}
+
+# Get projects with target, sorted by priority
+_get_projects_with_target_sorted() {
+  local target="$1"
+  local -a projects_metadata=($(_get_projects_with_target_metadata "$target"))
+
+  if [[ ${#projects_metadata} -eq 0 ]]; then
+    return 1
+  fi
+
+  local -a scored_projects=()
+  for entry in $projects_metadata; do
+    local project="${entry%%|*}"
+    local rest="${entry#*|}"
+    local project_type="${rest%%|*}"
+    local tags="${rest#*|}"
+
+    local score=$(_calculate_project_priority "$project_type" "$tags")
+    scored_projects+=("${score}|${project}")
+  done
+
+  # Sort by score (descending)
+  local -a sorted_projects=(${(On)scored_projects})
+
+  local -a result=()
+  for entry in $sorted_projects; do
+    result+=("${entry#*|}")
+  done
+
+  echo "${result[@]}"
+}
+
+# Get projects that have a specific target (with priority sorting if enhanced mode)
+_get_projects_with_target() {
+  local target="$1"
+
+  # If enhanced mode, use sorted version
+  if [[ "$_NX_ENHANCED_MODE" == "true" ]]; then
+    local -a projects=($(_get_projects_with_target_sorted "$target"))
+    if [[ ${#projects} -gt 0 ]]; then
+      echo "${projects[@]}"
+      return 0
+    fi
+  fi
+
+  # Fallback to simple extraction
+  local def=$(_workspace_def)
+  if [[ ! -f "$def" ]]; then
+    return 1
+  fi
+
+  local nodes_path=$(_get_nodes_path "$def")
+  local -a projects=()
+
+  if [[ "$nodes_path" == ".graph.nodes" ]]; then
+    projects=($(jq -r --arg target "$target" '
+      .graph.nodes[] |
+      select(.data.targets[$target] != null) |
+      .name
+    ' "$def" 2>/dev/null))
+  else
+    projects=($(jq -r --arg target "$target" '
+      .nodes[] |
+      select(.data.targets[$target] != null) |
+      .name
+    ' "$def" 2>/dev/null))
+  fi
+
+  echo "${projects[@]}"
+}
+
+# ============================================================================
+# END ENHANCED METADATA FUNCTIONS
+# ============================================================================
+
 # Unified completion function for workspace items
 _complete_workspace_items() {
   local item_type="$1" # "projects" or "targets"
@@ -464,6 +816,176 @@ _list_generators() {
   _describe -t nx-generators "Nx generators" generators && ret=0
   return ret
 }
+
+# ============================================================================
+# ENHANCED FEATURES - Target-aware completion functions
+# ============================================================================
+
+# Get current target from command line (for enhanced mode)
+_nx_get_current_target() {
+  echo "${words[1]}"
+}
+
+# List projects filtered by target (enhanced mode)
+_list_projects_with_target() {
+  [[ $PREFIX = -* ]] && return 1
+  integer ret=1
+
+  local target=$(_nx_get_current_target)
+
+  # Skip target filtering for commands that don't use targets
+  case "$target" in
+    run|run-many|affected|graph|list|migrate|init|repair|reset|report|show|generate|g|add|import|login|exec|watch|daemon|release|connect|sync|view-logs|format)
+      _list_projects
+      return $?
+      ;;
+  esac
+
+  local -a projects=($(_get_projects_with_target_sorted "$target"))
+
+  if [[ ${#projects} -eq 0 ]]; then
+    # No projects found with this target, fall back to all projects
+    _list_projects
+    return $?
+  fi
+
+  local -a filtered_projects=()
+  if [[ -n "$PREFIX" ]]; then
+    filtered_projects=(${(M)projects:#${PREFIX}*})
+  else
+    filtered_projects=($projects)
+  fi
+
+  if [[ ${#filtered_projects} -gt $NX_MAX_RESULTS ]]; then
+    filtered_projects=(${filtered_projects[1,$NX_MAX_RESULTS]})
+  fi
+
+  if [[ ${#filtered_projects} -gt 0 ]]; then
+    local expl
+    local desc="Projects with '$target' target"
+
+    # Add config file indicator if present
+    local config_file=$(_nx_find_config)
+    if [[ -n "$config_file" ]]; then
+      local config_dir="${config_file:h}"
+      local rel_path="${config_dir#$PWD}"
+      [[ "$rel_path" == "$config_dir" ]] && rel_path="$(basename $config_dir)"
+      desc="$desc (config: ${rel_path:-.})"
+    fi
+
+    _description nx-projects-filtered expl "$desc"
+    compadd "$expl[@]" -a filtered_projects && ret=0
+  fi
+
+  return ret
+}
+
+# List unique projects for 'run' command (enhanced mode with priority sorting)
+_list_projects_for_run() {
+  [[ $PREFIX = -* ]] && return 1
+  integer ret=1
+
+  # Generate cache key based on config file presence
+  local config_file=$(_nx_find_config)
+  local config_hash=""
+  if [[ -n "$config_file" ]]; then
+    config_hash=$(echo "$config_file" | (command -v md5sum &> /dev/null && md5sum || md5 -r) | awk '{print $1}')
+  else
+    local pwd_hash=$(echo "$PWD" | (command -v md5sum &> /dev/null && md5sum || md5 -r) | awk '{print $1}')
+    config_hash="$pwd_hash"
+  fi
+
+  local cache_key="nx_all_projects_sorted_${config_hash}"
+  local cache_policy
+
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check cache
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    local -a cached_projects=("${(P@)cache_key}")
+
+    local -a filtered_projects=()
+    if [[ -n "$PREFIX" ]]; then
+      filtered_projects=(${(M)cached_projects:#${PREFIX}*})
+    else
+      filtered_projects=(${cached_projects[1,$NX_MAX_RESULTS]})
+    fi
+
+    if [[ ${#filtered_projects} -gt 0 ]]; then
+      local expl
+      _description nx-projects expl "Projects"
+      compadd "$expl[@]" -a filtered_projects && ret=0
+    fi
+    return ret
+  fi
+
+  # Get all projects with metadata
+  local def=$(_workspace_def)
+  if [[ ! -f "$def" ]]; then
+    return 1
+  fi
+
+  local nodes_path=$(_get_nodes_path "$def")
+  local -a projects_metadata=()
+
+  if [[ "$nodes_path" == ".graph.nodes" ]]; then
+    projects_metadata=($(jq -r '
+      .graph.nodes[] |
+      .name + "|" + (.data.projectType // "library") + "|" + (.data.tags // [] | join(","))
+    ' "$def" 2>/dev/null))
+  else
+    projects_metadata=($(jq -r '
+      .nodes[] |
+      .name + "|" + (.data.projectType // "library") + "|" + (.data.tags // [] | join(","))
+    ' "$def" 2>/dev/null))
+  fi
+
+  # Calculate scores and sort
+  local -a scored_projects=()
+  for entry in $projects_metadata; do
+    local project="${entry%%|*}"
+    local rest="${entry#*|}"
+    local project_type="${rest%%|*}"
+    local tags="${rest#*|}"
+
+    local score=$(_calculate_project_priority "$project_type" "$tags")
+    scored_projects+=("${score}|${project}")
+  done
+
+  local -a sorted_projects=(${(On)scored_projects})
+
+  local -a result=()
+  for entry in $sorted_projects; do
+    result+=("${entry#*|}")
+  done
+
+  # Cache results
+  eval "${cache_key}=(\"\${result[@]}\")"
+  _store_cache "$cache_key" "${cache_key}"
+
+  # Filter and display
+  local -a filtered_projects=()
+  if [[ -n "$PREFIX" ]]; then
+    filtered_projects=(${(M)result:#${PREFIX}*})
+  else
+    filtered_projects=(${result[1,$NX_MAX_RESULTS]})
+  fi
+
+  if [[ ${#filtered_projects} -gt 0 ]]; then
+    local expl
+    _description nx-projects expl "Projects"
+    compadd "$expl[@]" -a filtered_projects && ret=0
+  fi
+
+  return ret
+}
+
+# ============================================================================
+# END ENHANCED COMPLETION FUNCTIONS
+# ============================================================================
 
 _nx_commands() {
   [[ $PREFIX = -* ]] && return 1
@@ -1047,6 +1569,50 @@ _nx_command() {
     "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]"
   )
 
+  # ============================================================================
+  # ENHANCED MODE - Use target-aware completion if enabled
+  # ============================================================================
+  if [[ "$_NX_ENHANCED_MODE" == "true" ]]; then
+    case "$words[1]" in
+      (b|build|e|e2e|l|lint|s|serve|t|test)
+        # Target-aware commands - show only projects with this target
+        local -a cmd_opts=($(_nx_get_command_options "${words[1]}"))
+        if [[ ${#cmd_opts} -gt 0 ]]; then
+          _arguments $(_nx_arguments) \
+            $opts_help \
+            $cmd_opts \
+            ":project:_list_projects_with_target" && ret=0
+        else
+          _arguments $(_nx_arguments) \
+            $opts_help \
+            "(-c --configuration)"{-c=,--configuration=}"[Configuration]:configuration:" \
+            ":project:_list_projects_with_target" && ret=0
+        fi
+        return ret
+      ;;
+      (run|run-one)
+        # Show unique projects (not project:target combos) with priority sorting
+        local -a run_opts=($(_nx_get_command_options "run"))
+        if [[ ${#run_opts} -gt 0 ]]; then
+          _arguments $(_nx_arguments) \
+            $opts_help \
+            $run_opts \
+            ":project:_list_projects_for_run" && ret=0
+        else
+          _arguments $(_nx_arguments) \
+            $opts_help \
+            "(-c --configuration)"{-c=,--configuration=}"[Configuration]:configuration:" \
+            ":project:_list_projects_for_run" && ret=0
+        fi
+        return ret
+      ;;
+      # For other commands, fall through to standard mode below
+    esac
+  fi
+
+  # ============================================================================
+  # STANDARD MODE - Original behavior
+  # ============================================================================
   case "$words[1]" in
     (affected|affected:apps|affected:build|affected:libs|affected:e2e|affected:lint|affected:test|affected:graph|format|format:write|format:check|print-affected)
       _arguments $(_nx_arguments) \
@@ -1414,17 +1980,33 @@ _nx_completion() {
     return 1
   }
 }
-compdef _nx_completion nx
 
-# Load enhanced completion features if enabled
-if [[ "${NX_COMPLETE_ENHANCED}" == "true" ]]; then
-  # Get the directory where this plugin is located
-  local plugin_dir="${0:A:h}"
+# ============================================================================
+# PLUGIN INITIALIZATION
+# ============================================================================
 
-  if [[ -f "${plugin_dir}/nx-completion-enhanced.plugin.zsh" ]]; then
-    source "${plugin_dir}/nx-completion-enhanced.plugin.zsh"
-  else
-    echo "⚠️  NX_COMPLETE_ENHANCED is set but nx-completion-enhanced.plugin.zsh not found"
-    echo "   Looking in: ${plugin_dir}"
+# Auto-detect enhanced mode by looking for .nx-completion file
+_nx_detect_enhanced_mode
+
+# Display initialization message
+if [[ "$_NX_ENHANCED_MODE" == "true" ]]; then
+  local config_file=$(_nx_find_config)
+  if [[ -n "$config_file" ]]; then
+    # Uncomment to show startup message:
+    # echo "✅ nx-completion: Enhanced mode active"
+    # echo "   Config: $config_file"
+    # if [[ -n "$NX_PRIORITY_PROJECT_TYPES" ]]; then
+    #   echo "   Priority types: $NX_PRIORITY_PROJECT_TYPES"
+    # fi
+    # if [[ -n "$NX_PRIORITY_TAGS" ]]; then
+    #   echo "   Priority tags: $NX_PRIORITY_TAGS"
+    # fi
+    :  # Silent initialization
   fi
+else
+  # Standard mode - no message needed
+  :
 fi
+
+# Register completion function
+compdef _nx_completion nx

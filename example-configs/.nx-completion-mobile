@@ -1,4 +1,10 @@
 # .nx-completion for apps/mobile/
+#
+# AUTO-DETECT ACTIVATION:
+# Just creating this file enables enhanced completion features!
+# No environment variables needed - the plugin automatically detects
+# .nx-completion files and activates enhanced mode.
+#
 # Drop this file in apps/mobile/ to prioritize mobile projects
 
 # Prioritize mobile projects
